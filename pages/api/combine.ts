@@ -29,7 +29,6 @@ function isValidDate(dateStr: string): boolean {
 
 function processMetadata(data: any): Map<string, MetadataEntry> {
   const metadata = new Map<string, MetadataEntry>()
-
   
   data.data.forEach((entry: any) => {
     metadata.set(entry.accessionVersion, {
@@ -56,6 +55,20 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Credentials', 'true')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  )
+
+  // Handle OPTIONS request
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
+
   try {
     const { sequencesUrl, metadataUrl } = req.query
 
@@ -71,12 +84,9 @@ export default async function handler(
 
     const metadata = Object.fromEntries(metadataOriginal.data.map((entry: any) => [entry.accessionVersion, entry]))
 
-    //return res.status(200).json({ metadata, sequences })
-
-
     // Build new FASTA
     let newFasta = ''
-    sequences.forEach(({accessionVersion, main})=> {
+    sequences.forEach(({accessionVersion, main}) => {
       const meta = metadata[accessionVersion]
       if (meta && isValidDate(meta.sampleCollectionDate)) {
         newFasta += `>${meta.displayName}|${meta.sampleCollectionDate}\n${main}\n`
