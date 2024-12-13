@@ -3,8 +3,7 @@ import axios from 'axios'
 
 interface MetadataEntry {
   accessionVersion: string
-  displayName: string
-  sampleCollectionDate: string
+  [key: string]: any  // Allow for flexible metadata fields
 }
 
 interface SequenceEntry {
@@ -18,37 +17,28 @@ async function fetchAndParseJson(url: string): Promise<any> {
 }
 
 function isValidDate(dateStr: string): boolean {
-  // Check if date matches YYYY-MM-DD format
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/
   if (!dateRegex.test(dateStr)) return false
   
-  // Check if it's a valid date
   const date = new Date(dateStr)
   return date instanceof Date && !isNaN(date.getTime())
 }
 
-function processMetadata(data: any): Map<string, MetadataEntry> {
-  const metadata = new Map<string, MetadataEntry>()
-  
-  data.data.forEach((entry: any) => {
-    metadata.set(entry.accessionVersion, {
-      accessionVersion: entry.accessionVersion,
-      displayName: entry.displayName,
-      sampleCollectionDate: entry.sampleCollectionDate
-    })
-  })
-  
-  return metadata
+function buildFastaHeader(meta: MetadataEntry, fields: string[]): string {
+  return fields
+    .map(field => meta[field])
+    .filter(value => value !== undefined)
+    .join('|')
 }
 
-function processSequences(data: any): Map<string, string> {
-  const sequences = new Map<string, string>()
-  
-  data.data.forEach((entry: SequenceEntry) => {
-    sequences.set(entry.accessionVersion, entry.main)
+function hasRequiredFields(meta: MetadataEntry, fields: string[]): boolean {
+  return fields.every(field => {
+    const value = meta[field]
+    if (field === 'sampleCollectionDate') {
+      return value && isValidDate(value)
+    }
+    return value !== undefined && value !== null && value !== ''
   })
-  
-  return sequences
 }
 
 export default async function handler(
@@ -70,10 +60,17 @@ export default async function handler(
   }
 
   try {
-    const { sequencesUrl, metadataUrl } = req.query
+    const { sequencesUrl, metadataUrl, fields = 'displayName,sampleCollectionDate' } = req.query
 
     if (!sequencesUrl || !metadataUrl) {
       return res.status(400).json({ error: 'Both sequencesUrl and metadataUrl are required' })
+    }
+
+    // Convert fields string to array
+    const headerFields = (fields as string).split(',').map(f => f.trim())
+
+    if (headerFields.length === 0) {
+      return res.status(400).json({ error: 'At least one field must be specified' })
     }
 
     // Fetch both JSON files
@@ -82,20 +79,32 @@ export default async function handler(
       fetchAndParseJson(metadataUrl as string)
     ])
 
-    const metadata = Object.fromEntries(metadataOriginal.data.map((entry: any) => [entry.accessionVersion, entry]))
+    const metadata = Object.fromEntries(
+      metadataOriginal.data.map((entry: MetadataEntry) => [entry.accessionVersion, entry])
+    )
 
     // Build new FASTA
     let newFasta = ''
-    sequences.forEach(({accessionVersion, main}) => {
+    sequences.data.forEach(({accessionVersion, main}: SequenceEntry) => {
       const meta = metadata[accessionVersion]
-      if (meta && isValidDate(meta.sampleCollectionDate)) {
-        newFasta += `>${meta.displayName}|${meta.sampleCollectionDate}\n${main}\n`
+      if (meta && hasRequiredFields(meta, headerFields)) {
+        const header = buildFastaHeader(meta, headerFields)
+        newFasta += `>${header}\n${main}\n`
       }
     })
+
+    if (!newFasta) {
+      return res.status(404).json({ 
+        error: 'No valid sequences found with the specified metadata fields' 
+      })
+    }
 
     return res.status(200).send(newFasta)
   } catch (error) {
     console.error(error)
-    res.status(500).json({ error: 'Failed to process files' })
+    return res.status(500).json({ 
+      error: 'Failed to process files',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
   }
 }
