@@ -16,29 +16,17 @@ async function fetchAndParseJson(url: string): Promise<any> {
   return response.data
 }
 
-function isValidDate(dateStr: string): boolean {
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-  if (!dateRegex.test(dateStr)) return false
+function buildFastaHeader(meta: MetadataEntry | undefined, fields: string[], accessionVersion: string): string {
+  if (!meta) {
+    return accessionVersion // If no metadata exists, use accessionVersion as header
+  }
+
+  const values = fields.map(field => meta[field] ?? '')
+  if (values.every(v => v === '')) {
+    return accessionVersion // If all requested fields are empty/undefined, use accessionVersion
+  }
   
-  const date = new Date(dateStr)
-  return date instanceof Date && !isNaN(date.getTime())
-}
-
-function buildFastaHeader(meta: MetadataEntry, fields: string[]): string {
-  return fields
-    .map(field => meta[field])
-    .filter(value => value !== undefined)
-    .join('|')
-}
-
-function hasRequiredFields(meta: MetadataEntry, fields: string[]): boolean {
-  return fields.every(field => {
-    const value = meta[field]
-    if (field === 'sampleCollectionDate') {
-      return value && isValidDate(value)
-    }
-    return value !== undefined && value !== null && value !== ''
-  })
+  return values.join('|')
 }
 
 export default async function handler(
@@ -83,21 +71,13 @@ export default async function handler(
       metadataOriginal.data.map((entry: MetadataEntry) => [entry.accessionVersion, entry])
     )
 
-    // Build new FASTA
+    // Build new FASTA - include all sequences
     let newFasta = ''
     sequences.data.forEach(({accessionVersion, main}: SequenceEntry) => {
       const meta = metadata[accessionVersion]
-      if (meta && hasRequiredFields(meta, headerFields)) {
-        const header = buildFastaHeader(meta, headerFields)
-        newFasta += `>${header}\n${main}\n`
-      }
+      const header = buildFastaHeader(meta, headerFields, accessionVersion)
+      newFasta += `>${header}\n${main}\n`
     })
-
-    if (!newFasta) {
-      return res.status(404).json({ 
-        error: 'No valid sequences found with the specified metadata fields' 
-      })
-    }
 
     return res.status(200).send(newFasta)
   } catch (error) {
