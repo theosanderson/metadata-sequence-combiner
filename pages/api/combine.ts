@@ -49,7 +49,7 @@ export default async function handler(
 
   try {
     const { sequencesUrl, metadataUrl, fields = 'displayName,sampleCollectionDate' } = req.query
-    const fieldsSplit = fields.split(',')
+    const fieldsSplit = (fields as string).split(',')
     
     if (!sequencesUrl || !metadataUrl) {
       return res.status(400).json({ error: 'Both sequencesUrl and metadataUrl are required' })
