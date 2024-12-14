@@ -48,18 +48,13 @@ export default async function handler(
   }
 
   try {
-    const { sequencesUrl, metadataUrl, fields = 'displayName,sampleCollectionDate' } = req.query
-
+    let { sequencesUrl, metadataUrl, fields = 'displayName,sampleCollectionDate' } = req.query
+    fields = fields.split(',')
+    
     if (!sequencesUrl || !metadataUrl) {
       return res.status(400).json({ error: 'Both sequencesUrl and metadataUrl are required' })
     }
 
-    // Convert fields string to array
-    const headerFields = (fields as string).split(',').map(f => f.trim())
-
-    if (headerFields.length === 0) {
-      return res.status(400).json({ error: 'At least one field must be specified' })
-    }
 
     // Fetch both JSON files
     const [sequences, metadataOriginal] = await Promise.all([
@@ -67,15 +62,17 @@ export default async function handler(
       fetchAndParseJson(metadataUrl as string)
     ])
 
+    
+
     const metadata = Object.fromEntries(
-      metadataOriginal.data.map((entry: MetadataEntry) => [entry.accessionVersion, entry])
+      metadataOriginal.map((entry: MetadataEntry) => [entry.accessionVersion, entry])
     )
 
     // Build new FASTA - include all sequences
     let newFasta = ''
-    sequences.data.forEach(({accessionVersion, main}: SequenceEntry) => {
+    sequences.forEach(({accessionVersion, main}: SequenceEntry) => {
       const meta = metadata[accessionVersion]
-      const header = buildFastaHeader(meta, headerFields, accessionVersion)
+      const header = buildFastaHeader(meta, fields, accessionVersion)
       newFasta += `>${header}\n${main}\n`
     })
 
