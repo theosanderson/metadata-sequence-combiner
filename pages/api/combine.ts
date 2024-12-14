@@ -50,6 +50,8 @@ export default async function handler(
   try {
     const { sequencesUrl, metadataUrl, filterForValidDate, fields = 'displayName,sampleCollectionDate',  } = req.query
     const fieldsSplit = (fields as string).split(',')
+
+    const filterForValidDateString = filterForValidDate as string
     
     if (!sequencesUrl || !metadataUrl) {
       return res.status(400).json({ error: 'Both sequencesUrl and metadataUrl are required' })
@@ -72,8 +74,8 @@ export default async function handler(
     let newFasta = ''
     sequences.forEach(({accessionVersion, main}: SequenceEntry) => {
       const meta = metadata[accessionVersion]
-      if(filterForValidDate){
-        const date = meta[filterForValidDate]
+      if(filterForValidDateString){
+        const date = meta[filterForValidDateString]
         if(date && !/\d{4}-\d{2}-\d{2}/.test(date)){
           return
         }
