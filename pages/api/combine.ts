@@ -48,8 +48,8 @@ export default async function handler(
   }
 
   try {
-    let { sequencesUrl, metadataUrl, fields = 'displayName,sampleCollectionDate' } = req.query
-    fields = fields.split(',')
+    const { sequencesUrl, metadataUrl, fields = 'displayName,sampleCollectionDate' } = req.query
+    const fieldsSplit = fields.split(',')
     
     if (!sequencesUrl || !metadataUrl) {
       return res.status(400).json({ error: 'Both sequencesUrl and metadataUrl are required' })
@@ -72,7 +72,7 @@ export default async function handler(
     let newFasta = ''
     sequences.forEach(({accessionVersion, main}: SequenceEntry) => {
       const meta = metadata[accessionVersion]
-      const header = buildFastaHeader(meta, fields, accessionVersion)
+      const header = buildFastaHeader(meta, fieldsSplit, accessionVersion)
       newFasta += `>${header}\n${main}\n`
     })
 
