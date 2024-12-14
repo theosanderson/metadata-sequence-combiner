@@ -48,7 +48,7 @@ export default async function handler(
   }
 
   try {
-    const { sequencesUrl, metadataUrl, fields = 'displayName,sampleCollectionDate' } = req.query
+    const { sequencesUrl, metadataUrl, filterForValidDate, fields = 'displayName,sampleCollectionDate',  } = req.query
     const fieldsSplit = (fields as string).split(',')
     
     if (!sequencesUrl || !metadataUrl) {
@@ -72,6 +72,12 @@ export default async function handler(
     let newFasta = ''
     sequences.forEach(({accessionVersion, main}: SequenceEntry) => {
       const meta = metadata[accessionVersion]
+      if(filterForValidDate){
+        const date = meta[filterForValidDate]
+        if(date && !/\d{4}-\d{2}-\d{2}/.test(date)){
+          return
+        }
+      }
       const header = buildFastaHeader(meta, fieldsSplit, accessionVersion)
       newFasta += `>${header}\n${main}\n`
     })
