@@ -26,6 +26,7 @@ function appendDataFormat(url: string, dataFormat: string): string {
  */
 async function fetchAndParseTSV(url: string): Promise<MetadataEntry[]> {
   const response = await axios.get(url, { responseType: 'text' })
+
   return parseTSV(response.data)
 }
 
